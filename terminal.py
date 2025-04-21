@@ -9,6 +9,7 @@ import time
 import shutil
 import getpass
 
+
 # Import pwd and grp only on Unix-like systems
 if os.name != "nt":
     import pwd
@@ -77,7 +78,7 @@ def change_directory(command):
     except OSError as e:
         print(f"OSError: {e}")
 
-
+# 
 def run_python_interactive():
     """Runs an interactive Python shell inside the custom terminal."""
     print(f"{Fore.YELLOW}Entering Python interactive mode. Type 'exit()' or 'Ctrl+D' to return.{Style.RESET_ALL}")
@@ -87,22 +88,52 @@ def run_python_interactive():
         print("\nExiting Python interactive mode.")
 
 def run_python_script(command):
-    """Runs a Python script from the terminal."""
+    """Runs a Python script or handles Python-related commands.
+    
+    Supports:
+    - python script.py [args]
+    - python --version/-v
+    - python -m module [args]
+    """
     parts = command.split()
-    if len(parts) < 2:
-        print("Usage: python <script.py>")
+    
+    # Handle version check requests
+    if len(parts) > 1 and parts[1] in ["--version", "-v", "-version"]:
+        run_python_version()
         return
-
+    
+    # Handle module execution (python -m module)
+    if len(parts) > 2 and parts[1] == "-m":
+        try:
+            subprocess.run([sys.executable, "-m", parts[2]] + parts[3:])
+        except Exception as e:
+            print(f"Error executing module: {e}")
+        return
+    
+    # Handle normal script execution
+    if len(parts) < 2:
+        print("Usage: python <script.py> [args] or python -m <module> [args]")
+        return
+    
     script_name = parts[1]
-
+    
     if not os.path.exists(script_name):
         print(f"Error: File '{script_name}' not found.")
         return
-
+    
     try:
-        subprocess.run([sys.executable, script_name], check=False)
+        # Run the script with any additional arguments
+        subprocess.run([sys.executable, script_name] + parts[2:], check=False)
     except Exception as e:
         print(f"Error executing script: {e}")
+
+
+def run_python_version():
+    """Show Python version using subprocess to get accurate version info."""
+    try:
+        subprocess.run([sys.executable, "--version"])
+    except Exception as e:
+        print(f"Error checking Python version: {e}")
 
 def execute_network_command(command):
     """Executes network-related commands."""
@@ -380,7 +411,7 @@ def change_file_ownership(user_group, file_name):
 def change_user_password():
     """Allows user to change their password (Linux/macOS only)."""
     if os.name == "nt":
-        print("'passwd' is not supported on Windows.")
+        print("'password' is not supported on Windows.")
     else:
         try:
             subprocess.run(["passwd"])
@@ -430,55 +461,55 @@ def go_to_root():
     else:
         print(f"{Fore.YELLOW}Exited root mode.{Style.RESET_ALL}")
 
+# Execite All git Command 
 def execute_git_command(command):
     """Executes Git commands."""
-    parts = command.split()
+    parts = command.strip().split()
 
-    if parts[0] == "git":
-        if len(parts) == 1:
-            print("Usage: git <command>")
-            return
-
-        git_command = parts[1]
-
-        if git_command == "init":
-            subprocess.run(["git", "init"])
-        elif git_command == "clone" and len(parts) > 2:
-            subprocess.run(["git", "clone", parts[2]])
-        elif git_command == "status":
-            subprocess.run(["git", "status"])
-        elif git_command == "add" and len(parts) > 2:
-            subprocess.run(["git", "add", parts[2]])
-        elif git_command == "commit" and len(parts) > 3 and parts[2] == "-m":
-            subprocess.run(["git", "commit", "-m", parts[3]])
-        elif git_command == "log":
-            subprocess.run(["git", "log"])
-        elif git_command == "branch":
-            if len(parts) == 2:
-                subprocess.run(["git", "branch"])
-            elif len(parts) == 3:
-                subprocess.run(["git", "branch", parts[2]])
-        elif git_command == "checkout" and len(parts) > 2:
-            subprocess.run(["git", "checkout", parts[2]])
-        elif git_command == "merge" and len(parts) > 2:
-            subprocess.run(["git", "merge", parts[2]])
-        elif git_command == "pull":
-            subprocess.run(["git", "pull"])
-        elif git_command == "push":
-            subprocess.run(["git", "push"])
-        elif git_command == "remote" and len(parts) > 2 and parts[2] == "-v":
-            subprocess.run(["git", "remote", "-v"])
-        elif git_command == "reset" and len(parts) > 3 and parts[2] == "--hard" and parts[3] == "HEAD":
-            subprocess.run(["git", "reset", "--hard", "HEAD"])
-        elif git_command == "stash":
-            if len(parts) == 2:
-                subprocess.run(["git", "stash"])
-            elif len(parts) == 3 and parts[2] == "pop":
-                subprocess.run(["git", "stash", "pop"])
-        else:
-            print("Unknown Git command.")
-    else:
+    if parts[0] != "git":
         print("Unknown command.")
+        return
+
+    if len(parts) == 1:
+        print("Usage: git <command>")
+        return
+
+    git_command = parts[1]
+
+    if git_command in ["--version", "-v"]:
+        subprocess.run(["git", "--version"])
+    elif git_command == "init":
+        subprocess.run(["git", "init"])
+    elif git_command == "clone" and len(parts) > 2:
+        subprocess.run(["git", "clone", parts[2]])
+    elif git_command == "status":
+        subprocess.run(["git", "status"])
+    elif git_command == "add" and len(parts) > 2:
+        subprocess.run(["git", "add"] + parts[2:])
+    elif git_command == "commit" and "-m" in parts:
+        message_index = parts.index("-m") + 1
+        message = " ".join(parts[message_index:])
+        subprocess.run(["git", "commit", "-m", message])
+    elif git_command == "log":
+        subprocess.run(["git", "log"])
+    elif git_command == "branch":
+        subprocess.run(parts)
+    elif git_command == "checkout" and len(parts) > 2:
+        subprocess.run(["git", "checkout", parts[2]])
+    elif git_command == "merge" and len(parts) > 2:
+        subprocess.run(["git", "merge", parts[2]])
+    elif git_command == "pull":
+        subprocess.run(["git", "pull"])
+    elif git_command == "push":
+        subprocess.run(["git", "push"])
+    elif git_command == "remote" and "-v" in parts:
+        subprocess.run(["git", "remote", "-v"])
+    elif git_command == "reset" and "--hard" in parts:
+        subprocess.run(["git", "reset", "--hard", "HEAD"])
+    elif git_command == "stash":
+        subprocess.run(parts)
+    else:
+        print("Unknown Git command.")
 
 def open_application(app_name):
     """Opens an application by its name."""
@@ -552,6 +583,7 @@ def run_terminal():
     while True:
         print_prompt()
         cmd = input().strip()  # Get user input
+        cmd_lower = cmd.lower()
 
         if cmd.lower() == "exit":
             print("Exiting terminal...")
@@ -571,6 +603,9 @@ def run_terminal():
 
         elif cmd.startswith("python "):
             run_python_script(cmd)  # Run a Python script
+
+        elif cmd_lower in ["python --version", "py --version", "python -v", "python -version", "python3 -v", "python3 -version"]:
+            run_python_version()
 
         elif cmd.split()[0] in ["ipconfig", "ifconfig", "ping", "tracert", "traceroute", "netstat", "nslookup", "hostname"]:
             execute_network_command(cmd)  # Handle network commands
@@ -593,7 +628,7 @@ def run_terminal():
         elif cmd == "ps aux":
             show_running_processes()  # Show running processes
 
-        elif cmd.startswith("touch "):
+        elif cmd.startswith("mf "):
             create_file(cmd.split()[1])  # Create an empty file
 
         elif cmd.startswith("mkdir "):
@@ -661,7 +696,7 @@ def run_terminal():
             if len(parts) == 3:
                 change_file_ownership(parts[1], parts[2])  # Change file ownership
 
-        elif cmd == "passwd":
+        elif cmd == "password":
             change_user_password()  # Change user password
 
         elif cmd.startswith("sudo "):
@@ -676,8 +711,8 @@ def run_terminal():
         elif cmd == "sudo su" or cmd == "go to root":
             go_to_root()  # Toggle root mode
 
-        elif cmd.startswith("git "):
-            execute_git_command(cmd)  # Execute Git commands
+        elif cmd.lower().startswith("git "):
+            execute_git_command(cmd) # Execute Git commands
 
         elif cmd.startswith("open "):
             open_application(cmd.split()[1])  # Open an application
@@ -689,13 +724,11 @@ def run_terminal():
                 laravel_artisan_command(cmd.split(" ", 1)[1])
 
         else:
-            # Fallback for any valid shell command like `php artisan serve`
             try:
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
                 output = result.stdout.strip() or result.stderr.strip()
                 print(output)
             except Exception as e:
                 print(f"Error running command: {e}")
-
 # Run the terminal
 run_terminal()
