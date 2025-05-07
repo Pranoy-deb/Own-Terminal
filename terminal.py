@@ -8,7 +8,7 @@ import psutil
 import time
 import shutil
 import getpass
-
+from pentest_tools import PENTEST_TOOLS,TOOL_CATEGORIES,COMMON_VARS
 
 # Import pwd and grp only on Unix-like systems
 if os.name != "nt":
@@ -453,13 +453,8 @@ def list_windows_admin_users():
         print("'net localgroup administrators' is only supported on Windows.")
 
 def go_to_root():
-    """Simulates 'sudo su' by toggling root mode."""
+    """Simulates 'sudo su' with password check."""
     global is_root_mode
-    is_root_mode = not is_root_mode  # Toggle root mode
-    if is_root_mode:
-        print(f"{Fore.YELLOW}Entered root mode. Commands will not actually execute as root.{Style.RESET_ALL}")
-    else:
-        print(f"{Fore.YELLOW}Exited root mode.{Style.RESET_ALL}")
 
 # Execite All git Command 
 def execute_git_command(command):
@@ -577,6 +572,57 @@ def laravel_artisan_command(command):
     else:
         print("Unknown command.")
 
+# --- Security Checks ---
+def check_root():
+    if os.geteuid() != 0:
+        print(f"{Fore.RED}ERROR: Root privileges required. Run with sudo.{Style.RESET_ALL}")
+        sys.exit(1)
+
+def is_dangerous(cmd):
+    BLACKLIST = ["rm -rf", "mkfs", "dd if=", ":(){:|:&};:"]
+    return any(bad in cmd.lower() for bad in BLACKLIST)
+
+# ---Pentest Tool command Execution ---
+def pentest_tool_execute(tool_name, user_args=""):
+    if tool_name not in PENTEST_TOOLS:
+        print(f"{Fore.RED}Tool not found: {tool_name}{Style.RESET_ALL}")
+        return False
+
+    tool = PENTEST_TOOLS[tool_name]
+    
+    if tool["requires_root"] and os.geteuid() != 0:
+        print(f"{Fore.RED}This tool requires root. Use 'sudo' or switch to root mode.{Style.RESET_ALL}")
+        return False
+
+    try:
+        cmd = tool["command"].format(**user_args) if user_args else tool["command"]
+        print(f"{Fore.CYAN}Executing: {cmd}{Style.RESET_ALL}")
+        subprocess.run(cmd, shell=True, check=True)
+    except KeyError as e:
+        print(f"{Fore.RED}Missing required argument: {e}{Style.RESET_ALL}")
+        pentest_tool_help(tool_name)
+    except subprocess.CalledProcessError:
+        print(f"{Fore.RED}Tool execution failed.{Style.RESET_ALL}")
+    except Exception as e:
+        print(f"{Fore.RED}Error: {str(e)}{Style.RESET_ALL}")
+
+# --- Help System ---
+def pentest_tool_help(tool_name):
+    if tool_name in PENTEST_TOOLS:
+        tool = PENTEST_TOOLS[tool_name]
+        print(f"\n{Fore.YELLOW}{tool_name.upper()}{Style.RESET_ALL}")
+        print(f"Description: {tool['description']}")
+        print(f"Command: {tool['command']}")
+        print(f"Install: {tool['install']}")
+        print("\nAvailable variables:")
+        for var, desc in COMMON_VARS.items():
+            if var in tool["command"]:
+                print(f"  {var}: {desc}")
+    else:
+        print(f"{Fore.RED}Tool not found.{Style.RESET_ALL}")
+
+
+
 def run_terminal():
     """Runs an interactive Python-based terminal emulator."""
     global is_root_mode
@@ -681,8 +727,8 @@ def run_terminal():
             check_disk_health(cmd.split()[1])  # Check disk health (Windows only)
 
         elif cmd == "id":
-            show_user_and_group_ids()  # Show user and group IDs
-
+            show_user_and_group_ids()  # Show user and group IDs 
+        
         elif cmd == "groups":
             show_user_groups()  # Show user groups
 
@@ -708,7 +754,7 @@ def run_terminal():
         elif cmd == "net localgroup administrators":
             list_windows_admin_users()  # List Windows admin users
 
-        elif cmd == "sudo su" or cmd == "go to root":
+        elif cmd == "sudo su":
             go_to_root()  # Toggle root mode
 
         elif cmd.lower().startswith("git "):
@@ -722,6 +768,9 @@ def run_terminal():
 
         elif cmd.startswith("artisan "):
                 laravel_artisan_command(cmd.split(" ", 1)[1])
+        
+        elif cmd == "pentest --help":
+            pentest_tool_help()
 
         else:
             try:
